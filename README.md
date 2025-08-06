@@ -7,7 +7,7 @@ POSTECH 지도 데이터를 기반으로 한 지능형 드론 음식 배달 시�
 ### 1. 지도 특성 분석 및 자동 알고리즘 선택
 - **지도 분석**: 건물 밀도, 면적, 배달 핫스팟 등 지도 특성 자동 분석
 - **알고리즘 자동 선택**: 지도 특성에 따른 최적 라우팅 알고리즘 자동 선택
-- **최적화 목표 자동 설정**: 비용 최적화 vs 시간 최적화 자동 결정
+- **사용자 최적화 목표 선택**: 비용 최적화 vs 시간 최적화 중 사용자가 선택
 
 ### 2. Depot 최적화
 - **K-means 클러스터링**: 밀도 기반 depot 위치 최적화
@@ -82,18 +82,9 @@ pip install numpy pandas matplotlib scikit-learn plotly folium
 
 ### 2. 시스템 실행
 
-#### 자동 모드 (권장)
 ```bash
 python algorithm/main.py
-# 선택: 1 (자동 모드)
-```
-
-#### 수동 모드
-```bash
-python algorithm/main.py
-# 선택: 2 (수동 모드)
-# 최적화 목표 선택: 1 (비용) 또는 2 (시간)
-# 알고리즘 선택: 1-10 (원하는 알고리즘)
+# 최적화 목표 선택: 1 (비용 최적화) 또는 2 (시간 최적화)
 ```
 
 ### 3. 시스템 테스트
@@ -103,28 +94,19 @@ python test_system.py
 
 ## 🎯 사용 예시
 
-### 자동 모드 실행
+### 시스템 실행
 ```python
 from algorithm.main import DroneDeliverySystem
 
-# 자동 모드로 시스템 실행
-system = DroneDeliverySystem(auto_mode=True)
+# 비용 최적화로 시스템 실행
+system = DroneDeliverySystem(optimization_target='cost')
 success = system.run()
 
 if success:
     print("시스템 실행 완료!")
-```
 
-### 수동 모드 실행
-```python
-from algorithm.main import DroneDeliverySystem
-
-# 수동 모드로 시스템 실행 (Clarke-Wright 알고리즘)
-system = DroneDeliverySystem(
-    auto_mode=False,
-    optimization_target='cost',
-    algorithm='clarke_wright'
-)
+# 시간 최적화로 시스템 실행
+system = DroneDeliverySystem(optimization_target='time')
 success = system.run()
 ```
 

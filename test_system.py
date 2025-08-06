@@ -11,52 +11,48 @@ sys.path.append(str(Path(__file__).parent))
 
 from algorithm.main import DroneDeliverySystem
 
-def test_auto_mode():
+def test_cost_optimization():
     """
-    자동 모드 테스트
+    비용 최적화 테스트
     """
-    print("=== 자동 모드 테스트 ===")
+    print("=== 비용 최적화 테스트 ===")
     
     try:
-        # 자동 모드로 시스템 실행
-        system = DroneDeliverySystem(auto_mode=True)
+        # 비용 최적화로 시스템 실행
+        system = DroneDeliverySystem(optimization_target='cost')
         success = system.run()
         
         if success:
-            print("✅ 자동 모드 테스트 성공!")
+            print("✅ 비용 최적화 테스트 성공!")
             return True
         else:
-            print("❌ 자동 모드 테스트 실패!")
+            print("❌ 비용 최적화 테스트 실패!")
             return False
             
     except Exception as e:
-        print(f"❌ 자동 모드 테스트 중 오류 발생: {e}")
+        print(f"❌ 비용 최적화 테스트 중 오류 발생: {e}")
         return False
 
-def test_manual_mode():
+def test_time_optimization():
     """
-    수동 모드 테스트
+    시간 최적화 테스트
     """
-    print("=== 수동 모드 테스트 ===")
+    print("=== 시간 최적화 테스트 ===")
     
     try:
-        # 수동 모드로 시스템 실행 (Clarke-Wright 알고리즘)
-        system = DroneDeliverySystem(
-            auto_mode=False,
-            optimization_target='cost',
-            algorithm='clarke_wright'
-        )
+        # 시간 최적화로 시스템 실행
+        system = DroneDeliverySystem(optimization_target='time')
         success = system.run()
         
         if success:
-            print("✅ 수동 모드 테스트 성공!")
+            print("✅ 시간 최적화 테스트 성공!")
             return True
         else:
-            print("❌ 수동 모드 테스트 실패!")
+            print("❌ 시간 최적화 테스트 실패!")
             return False
             
     except Exception as e:
-        print(f"❌ 수동 모드 테스트 중 오류 발생: {e}")
+        print(f"❌ 시간 최적화 테스트 중 오류 발생: {e}")
         return False
 
 def test_depot_planner():
@@ -256,6 +252,10 @@ def main():
     test_results.append(("Routing Algorithms", test_routing_algorithms()))
     test_results.append(("Realtime Simulation", test_realtime_simulation()))
     
+    # 최적화 목표별 테스트
+    test_results.append(("Cost Optimization", test_cost_optimization()))
+    test_results.append(("Time Optimization", test_time_optimization()))
+    
     # 테스트 결과 출력
     print("\n=== 개별 모듈 테스트 결과 ===")
     
@@ -277,7 +277,7 @@ def main():
     print("\n" + "=" * 50)
     print("실시간 동적 시뮬레이션을 실행하려면:")
     print("python algorithm/main.py")
-    print("를 실행하고 자동 모드를 선택하세요.")
+    print("를 실행하고 최적화 목표를 선택하세요.")
     print("애니메이션과 함께 실시간으로 배달 요청이 생성되는 것을 확인할 수 있습니다.")
 
 if __name__ == "__main__":

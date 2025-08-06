@@ -28,11 +28,10 @@ class DroneDeliverySystem:
     드론 음식 배달 시스템 메인 클래스
     """
     
-    def __init__(self, auto_mode=True, optimization_target='auto', algorithm='auto'):
+    def __init__(self, optimization_target='auto', algorithm='auto'):
         """
         초기화
         """
-        self.auto_mode = auto_mode
         self.optimization_target = optimization_target
         self.algorithm = algorithm
         
@@ -54,10 +53,8 @@ class DroneDeliverySystem:
         self.map_characteristics = {}
         
         print(f"드론 배달 시스템 초기화 완료")
-        print(f"자동 모드: {auto_mode}")
-        if not auto_mode:
-            print(f"최적화 목표: {optimization_target}")
-            print(f"선택된 알고리즘: {algorithm}")
+        print(f"최적화 목표: {optimization_target}")
+        print(f"선택된 알고리즘: {algorithm}")
     
     def load_data(self):
         """
@@ -97,15 +94,14 @@ class DroneDeliverySystem:
         # 지도 특성 분석
         self.map_characteristics = self.depot_planner.analyze_map_characteristics()
         
-        if self.auto_mode:
-            # 자동으로 최적화 목표 선택
+        # 자동으로 최적화 목표 선택 (사용자가 선택하지 않은 경우)
+        if self.optimization_target == 'auto':
             self.optimization_target = self._select_optimal_target()
-            
-            # 자동으로 알고리즘 선택
-            self.algorithm = self._select_optimal_algorithm()
-            
             print(f"자동 선택된 최적화 목표: {self.optimization_target}")
-            print(f"자동 선택된 알고리즘: {self.algorithm}")
+        
+        # 자동으로 알고리즘 선택
+        self.algorithm = self._select_optimal_algorithm()
+        print(f"자동 선택된 알고리즘: {self.algorithm}")
         
         return True
     
@@ -210,7 +206,7 @@ class DroneDeliverySystem:
         """
         배달 요청 생성
         """
-        print("\n=== 5단계: 배달 요청 생성 ===")
+        print("\n=== 6단계: 배달 요청 생성 ===")
         
         try:
             # 지도 특성에 따른 요청 수 조정
@@ -236,15 +232,13 @@ class DroneDeliverySystem:
             print(f"배달 요청 생성 중 오류 발생: {e}")
             return False
     
-    def create_drones(self, num_drones=None):
+    def create_drones(self, num_drones):
         """
         드론 생성
         """
-        print("\n=== 6단계: 드론 생성 ===")
+        print("\n=== 5단계: 드론 생성 ===")
         
         try:
-            if num_drones is None:
-                num_drones = self.calculate_optimal_drone_count()
             
             self.drones = []
             
@@ -489,30 +483,35 @@ class DroneDeliverySystem:
         if not self.optimize_depots():
             return False
         
-        # 4. 배달 요청 생성
-        if not self.generate_delivery_requests():
+        # 4. 최적 드론 수 계산
+        optimal_drone_count = self.calculate_optimal_drone_count()
+        if optimal_drone_count is None:
             return False
         
         # 5. 드론 생성
-        if not self.create_drones():
+        if not self.create_drones(optimal_drone_count):
             return False
         
-        # 6. 경로 최적화
+        # 6. 배달 요청 생성
+        if not self.generate_delivery_requests():
+            return False
+        
+        # 7. 경로 최적화
         if not self.optimize_routes():
             return False
         
-        # 7. 시뮬레이션 실행
+        # 8. 시뮬레이션 실행
         simulation_results = self.run_simulation()
         if simulation_results is None:
             return False
         
-        # 8. 결과 분석
+        # 9. 결과 분석
         metrics = self.analyze_results(simulation_results)
         
-        # 9. 시각화
+        # 10. 시각화
         self.visualize_results(simulation_results)
         
-        # 10. 결과 저장
+        # 11. 결과 저장
         self.save_results(simulation_results)
         
         print("\n" + "=" * 50)
@@ -528,83 +527,24 @@ def main():
     print("드론 음식 배달 시스템")
     print("-" * 30)
     
-    # 자동 모드 선택
-    print("실행 모드를 선택하세요:")
-    print("1. 자동 모드 (지도 분석 후 최적 알고리즘 자동 선택)")
-    print("2. 수동 모드 (사용자가 직접 선택)")
+    # 최적화 목표 선택
+    print("최적화 목표를 선택하세요:")
+    print("1. 비용 최적화 (cost)")
+    print("2. 시간 최적화 (time)")
     
     while True:
-        mode_choice = input("선택 (1 또는 2): ").strip()
-        if mode_choice == '1':
-            auto_mode = True
+        target_choice = input("선택 (1 또는 2): ").strip()
+        if target_choice == '1':
+            optimization_target = 'cost'
             break
-        elif mode_choice == '2':
-            auto_mode = False
+        elif target_choice == '2':
+            optimization_target = 'time'
             break
         else:
             print("잘못된 선택입니다. 1 또는 2를 입력하세요.")
     
-    if auto_mode:
-        # 자동 모드
-        system = DroneDeliverySystem(auto_mode=True)
-    else:
-        # 수동 모드
-        print("\n최적화 목표를 선택하세요:")
-        print("1. cost (비용 최적화)")
-        print("2. time (시간 최적화)")
-        
-        while True:
-            target_choice = input("선택 (1 또는 2): ").strip()
-            if target_choice == '1':
-                optimization_target = 'cost'
-                break
-            elif target_choice == '2':
-                optimization_target = 'time'
-                break
-            else:
-                print("잘못된 선택입니다. 1 또는 2를 입력하세요.")
-        
-        print("\n알고리즘을 선택하세요:")
-        print("Metaheuristic:")
-        print("1. genetic (유전 알고리즘)")
-        print("2. ant_colony (개미 군집 최적화)")
-        print("3. particle_swarm (입자 군집 최적화)")
-        print("4. simulated_annealing (시뮬레이티드 어닐링)")
-        print("Reinforcement Learning:")
-        print("5. q_learning (Q-Learning)")
-        print("6. dqn (Deep Q-Network)")
-        print("7. actor_critic (Actor-Critic)")
-        print("Matheuristic:")
-        print("8. clarke_wright (Clarke-Wright)")
-        print("9. savings (Savings Algorithm)")
-        print("10. sweep (Sweep Algorithm)")
-        
-        algorithm_map = {
-            '1': 'genetic',
-            '2': 'ant_colony',
-            '3': 'particle_swarm',
-            '4': 'simulated_annealing',
-            '5': 'q_learning',
-            '6': 'dqn',
-            '7': 'actor_critic',
-            '8': 'clarke_wright',
-            '9': 'savings',
-            '10': 'sweep'
-        }
-        
-        while True:
-            algo_choice = input("선택 (1-10): ").strip()
-            if algo_choice in algorithm_map:
-                algorithm = algorithm_map[algo_choice]
-                break
-            else:
-                print("잘못된 선택입니다. 1-10 중에서 선택하세요.")
-        
-        system = DroneDeliverySystem(
-            auto_mode=False,
-            optimization_target=optimization_target,
-            algorithm=algorithm
-        )
+    # 자동 모드로 시스템 실행 (알고리즘은 자동 선택)
+    system = DroneDeliverySystem(optimization_target=optimization_target)
     
     # 시스템 실행
     success = system.run()

@@ -51,4 +51,30 @@ results/
 *.json
 
 # Keep only essential map files
-!map/postech_map/merged_maps/postech_buildings_real_height.csv 
+!map/postech_map/merged_maps/postech_buildings_real_height.csv
+
+# Map data files (ignore data but keep code)
+map/postech_map/raw_maps/
+map/postech_map/경상북도_GIS건물통합정보/
+map/postech_map/국가기본공간정보_포스텍/
+map/postech_map/vworld/
+map/postech_map/*.png
+map/postech_map/*.jpg
+map/postech_map/*.jpeg
+map/postech_map/*.tiff
+map/postech_map/*.tif
+map/postech_map/*.shp
+map/postech_map/*.shx
+map/postech_map/*.dbf
+map/postech_map/*.prj
+map/postech_map/*.cpg
+map/postech_map/*.fix
+map/postech_map/*.xlsx
+map/postech_map/*.xls
+map/postech_map/*.csv
+map/postech_map/*.geojson
+map/postech_map/*.json
+
+# Keep map code files
+!map/*.py
+!map/postech_map/*.py 

@@ -12,11 +12,12 @@ class DepotPlanner:
     Depot 위치 최적화 및 계획 클래스
     """
     
-    def __init__(self, building_data):
+    def __init__(self, building_data_loader):
         """
         초기화
         """
-        self.building_data = building_data
+        self.building_data_loader = building_data_loader
+        self.building_data = building_data_loader.buildings
         self.depots = []
         self.optimal_k = None
         self.depot_coverage = {}
@@ -77,38 +78,85 @@ class DepotPlanner:
         """
         hotspots = []
         
-        # 식당, 상업시설 등 배달 출발점
-        restaurant_types = ['근린생활시설', '기타시설', '상업시설']
-        restaurants = self.building_data[
-            self.building_data['용도'].isin(restaurant_types)
-        ]
+        # data_loader에서 분류된 실제 식당 데이터 사용 (층별 포인트)
+        restaurants = self.building_data_loader.get_restaurant_floor_points()
+        if restaurants is None or len(restaurants) == 0:
+            print("⚠️ 식당 데이터가 없습니다.")
+            # 기본 분류 사용 (fallback)
+            restaurant_types = ['교육연구시설']
+            restaurants = self.building_data[
+                self.building_data['USABILITY'].isin(restaurant_types)
+            ]
+            # 기본 데이터를 층별 포인트로 변환
+            if len(restaurants) > 0:
+                restaurants = self._convert_buildings_to_floor_points(restaurants)
         
-        # 주거지역 등 배달 도착점
-        residential_types = ['주택', '근린생활시설']
-        residential = self.building_data[
-            self.building_data['용도'].isin(residential_types)
-        ]
+        # data_loader에서 분류된 주거용 건물 데이터 사용 (층별 포인트)
+        residential = self.building_data_loader.get_residential_floor_points()
+        if residential is None or len(residential) == 0:
+            print("⚠️ 주거용 건물 데이터가 없습니다. 기본 분류를 사용합니다.")
+            # 기본 분류 사용 (fallback)
+            residential_types = ['공동주택', '교육연구시설']
+            residential = self.building_data[
+                self.building_data['USABILITY'].isin(residential_types)
+            ]
+            # 기본 데이터를 층별 포인트로 변환
+            if len(residential) > 0:
+                residential = self._convert_buildings_to_floor_points(residential)
         
-        # 핫스팟으로 추가 (식당은 모두, 주거지는 샘플링)
+        # 핫스팟으로 추가 (층별 포인트)
         for _, building in restaurants.iterrows():
             hotspots.append({
                 'type': 'restaurant',
                 'latitude': building['latitude'],
                 'longitude': building['longitude'],
+                'height': building['height'],
+                'floor_number': building.get('floor_number', 1),
+                'total_floors': building.get('total_floors', 1),
                 'weight': 2.0  # 식당은 높은 가중치
             })
         
-        # 주거지역은 샘플링하여 추가
-        residential_sample = residential.sample(n=min(len(residential), 50))
+        # 주거지역은 샘플링하여 추가 (층별 포인트)
+        residential_sample = residential.sample(n=min(len(residential), 100))  # 층별 포인트가 많으므로 샘플 수 증가
         for _, building in residential_sample.iterrows():
             hotspots.append({
                 'type': 'residential',
                 'latitude': building['latitude'],
                 'longitude': building['longitude'],
+                'height': building['height'],
+                'floor_number': building.get('floor_number', 1),
+                'total_floors': building.get('total_floors', 1),
                 'weight': 1.0  # 주거지역은 낮은 가중치
             })
         
         return hotspots
+    
+    def _convert_buildings_to_floor_points(self, buildings):
+        """
+        기본 건물 데이터를 층별 포인트로 변환 (fallback용)
+        """
+        floor_points = []
+        
+        for idx, building in buildings.iterrows():
+            # 높이 정보가 없으면 기본값 사용
+            building_height = building.get('HEIGHT', 9.0)  # 기본 3층 (3m * 3)
+            floors = max(1, int(building_height / 3))
+            
+            # 각 층별로 포인트 생성
+            for floor_num in range(1, floors + 1):
+                floor_height = (building_height * floor_num / floors)
+                
+                floor_point = {
+                    'latitude': building['latitude'],
+                    'longitude': building['longitude'],
+                    'height': floor_height,
+                    'floor_number': floor_num,
+                    'total_floors': floors
+                }
+                
+                floor_points.append(floor_point)
+        
+        return pd.DataFrame(floor_points)
     
     def _analyze_building_density(self):
         """

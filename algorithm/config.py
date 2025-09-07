@@ -5,11 +5,7 @@
 # 시스템 설정
 SYSTEM_CONFIG = {
     'optimization_targets': ['cost', 'time'],
-    'algorithms': {
-        'metaheuristic': ['genetic', 'ant_colony', 'particle_swarm', 'simulated_annealing'],
-        'RL': ['q_learning', 'dqn', 'actor_critic']
-    },
-    'building_data_path': 'map/postech_map/merged_maps/postech_buildings_real_height.csv'
+    'building_data_path': 'map/postech_map/postech_building_list.csv'
 }
 
 # 드론 설정
@@ -28,8 +24,8 @@ DRONE_CONFIG = {
 DELIVERY_CONFIG = {
     'request_generation_rate': 0.1,  # requests per minute
     'max_waiting_time': 30.0,        # minutes
-    'restaurant_types': ['근린생활시설', '기타시설'],  # 식당으로 사용할 건물 용도
-    'residential_types': ['주택', '근린생활시설'],     # 배달 목적지로 사용할 건물 용도
+    'restaurant_types': ['교육연구시설'],  # 식당으로 사용할 건물 용도
+    'residential_types': ['공동주택'],     # 배달 목적지로 사용할 건물 용도
     'delivery_time_window': 15.0,    # minutes (배달 완료 허용 시간)
     'order_preparation_time': 5.0,   # minutes (주문 준비 시간)
 }

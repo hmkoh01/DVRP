@@ -1,14 +1,11 @@
 """
-드론 음식 배달 시스템 메인 실행 파일
+드론 음식 배달 시스템 메인 실행 파일 (AirSim 3D 시각화 + RouteManager 연동)
 """
 
 import sys
-import os
 from pathlib import Path
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 import warnings
+import time
 warnings.filterwarnings('ignore')
 
 # 프로젝트 루트 경로 추가
@@ -16,543 +13,268 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from algorithm.config import *
 from algorithm.utils.data_loader import BuildingDataLoader
+from algorithm.simulation.airsim_visualizer import AirSimVisualizer
+from algorithm.utils.coordinate_converter import CoordinateConverter
+from algorithm.simulation.order_generator import OrderGenerator
+from algorithm.routing.realtime_route_manager import RealtimeRouteManager
 
-from algorithm.utils.delivery_generator import DeliveryRequestGenerator
-from algorithm.utils.visualization import VisualizationTool
-from algorithm.depot.depot_planner import DepotPlanner
-from algorithm.depot.drone_allocator import DroneAllocator
-from algorithm.simulation.realtime_simulator import RealtimeDroneSimulator
 
 class DroneDeliverySystem:
-    """
-    드론 음식 배달 시스템 메인 클래스
-    """
-    
-    def __init__(self, optimization_target='auto', algorithm='auto'):
-        """
-        초기화
-        """
-        self.optimization_target = optimization_target
-        self.algorithm = algorithm
-        
-        # 데이터 로더 초기화
+    def __init__(self, simulation_mode='realtime'):
+        self.simulation_mode = simulation_mode
         self.data_loader = BuildingDataLoader()
-        self.delivery_generator = None
-        self.visualization_tool = None
-        
-        # 새로운 모듈들
-        self.depot_planner = None
-        self.drone_allocator = None
-        
-        # 시스템 상태
+
         self.buildings = None
         self.depots = []
-        self.delivery_requests = []
         self.drones = []
-        self.routes = []
-        self.map_characteristics = {}
-        
-        print(f"드론 배달 시스템 초기화 완료")
-        print(f"최적화 목표: {optimization_target}")
-        print(f"선택된 알고리즘: {algorithm}")
-    
-    def load_data(self):
-        """
-        건물 데이터 로드
-        """
-        print("\n=== 1단계: 건물 데이터 로드 ===")
-        
-        try:
-            # 설정된 경로에서 데이터 로드
-            data_path = SYSTEM_CONFIG['building_data_path']
-            self.buildings = self.data_loader.load_building_data(data_path)
-            
-            if self.buildings is None:
-                print("건물 데이터 로드에 실패했습니다.")
-                return False
-            
-            # 유틸리티 객체들 초기화
-            self.delivery_generator = DeliveryRequestGenerator(self.data_loader)
-            self.visualization_tool = VisualizationTool(self.data_loader)
-            
-            print("건물 데이터 로드 완료!")
-            return True
-            
-        except Exception as e:
-            print(f"데이터 로드 중 오류 발생: {e}")
-            return False
-    
-    def analyze_map_and_select_algorithm(self):
-        """
-        지도 특성 분석 및 최적 알고리즘 선택
-        """
-        print("\n=== 2단계: 지도 특성 분석 및 알고리즘 선택 ===")
-        
-        # 새로운 depot planner 사용
-        self.depot_planner = DepotPlanner(self.buildings)
-        
-        # 지도 특성 분석
-        self.map_characteristics = self.depot_planner.analyze_map_characteristics()
-        
-        # 자동으로 최적화 목표 선택 (사용자가 선택하지 않은 경우)
-        if self.optimization_target == 'auto':
-            self.optimization_target = self._select_optimal_target()
-            print(f"자동 선택된 최적화 목표: {self.optimization_target}")
-        
-        # 자동으로 알고리즘 선택
-        self.algorithm = self._select_optimal_algorithm()
-        print(f"자동 선택된 알고리즘: {self.algorithm}")
-        
-        return True
-    
-    def _select_optimal_target(self):
-        """
-        지도 특성에 따른 최적화 목표 선택
-        """
-        building_density = self.map_characteristics['building_density']
-        area_coverage = self.map_characteristics['area_coverage']
-        
-        # 고밀도 지역이거나 넓은 지역이면 시간 최적화
-        if building_density > 50 or area_coverage > 5:
-            return 'time'
-        else:
-            return 'cost'
-    
-    def _select_optimal_algorithm(self):
-        """
-        지도 특성에 따른 최적 알고리즘 선택
-        """
-        building_density = self.map_characteristics['building_density']
-        area_coverage = self.map_characteristics['area_coverage']
-        total_buildings = self.map_characteristics['total_buildings']
-        
-        # 건물 수가 많고 복잡한 지역
-        if total_buildings > 1000:
-            return 'genetic'
-        # 중간 규모 지역
-        elif total_buildings > 500:
-            return 'ant_colony'
-        # 작은 규모 지역
-        elif total_buildings > 100:
-            return 'particle_swarm'
-        # 매우 작은 지역
-        else:
-            return 'clarke_wright'
-    
-    def optimize_depots(self):
-        """
-        Depot 최적화 (새로운 방식)
-        """
-        print("\n=== 3단계: Depot 최적화 ===")
-        
-        try:
-            # 새로운 depot planner 사용
-            self.depots = self.depot_planner.optimize_depot_locations(method='auto')
-            
-            if self.depots:
-                print("Depot 최적화 완료!")
-                
-                # Depot 통계 출력
-                stats = self.depot_planner.get_depot_statistics()
-                print(f"총 Depot 수: {stats['total_depots']}")
-                print(f"총 커버리지: {stats['total_coverage']}개 건물")
-                print(f"평균 커버리지 반경: {stats['avg_coverage_radius']:.4f} km")
-                
-                return True
-            else:
-                print("Depot 최적화에 실패했습니다.")
-                return False
-                
-        except Exception as e:
-            print(f"Depot 최적화 중 오류 발생: {e}")
-            return False
-    
-    def calculate_optimal_drone_count(self):
-        """
-        최적 드론 수 계산
-        """
-        print("\n=== 4단계: 최적 드론 수 계산 ===")
-        
-        try:
-            # 새로운 drone allocator 사용
-            self.drone_allocator = DroneAllocator(self.depots, self.buildings)
-            
-            # 최적 드론 수 계산
-            optimal_drones = self.drone_allocator.calculate_optimal_drone_count(method='workload_based')
-            
-            if optimal_drones:
-                print(f"계산된 최적 드론 수: {optimal_drones}")
-                
-                # 드론 할당
-                drone_allocation = self.drone_allocator.allocate_drones_to_depots(
-                    optimal_drones, method='workload_based'
-                )
-                
-                # 할당 통계
-                allocation_stats = self.drone_allocator.get_allocation_statistics(drone_allocation)
-                print(f"Depot별 드론 할당: {drone_allocation}")
-                print(f"평균 드론/Depot: {allocation_stats['avg_drones_per_depot']:.1f}")
-                
-                return optimal_drones
-            else:
-                print("드론 수 계산에 실패했습니다.")
-                return 10  # 기본값
-                
-        except Exception as e:
-            print(f"드론 수 계산 중 오류 발생: {e}")
-            return 10  # 기본값
 
-    def generate_delivery_requests(self, num_requests=50):
-        """
-        배달 요청 생성
-        """
-        print("\n=== 6단계: 배달 요청 생성 ===")
-        
+        self.airsim_visualizer = None
+
+        print("🚀 AirSim 3D 드론 배달 시스템 초기화 완료")
+        print(f"시뮬레이션 모드: {simulation_mode}")
+
+    def load_data(self):
+        print("\n=== 1단계: 건물 데이터 로드 ===")
         try:
-            # 지도 특성에 따른 요청 수 조정
-            if self.map_characteristics:
-                building_density = self.map_characteristics['building_density']
-                if building_density > 100:
-                    num_requests = min(100, num_requests * 2)
-                elif building_density < 10:
-                    num_requests = max(20, num_requests // 2)
+            # JSON 형태의 건물 데이터 로드
+            import json
+            from pathlib import Path
             
-            self.delivery_requests = self.delivery_generator.generate_requests(
-                num_requests=num_requests
-            )
-            
-            if self.delivery_requests:
-                print(f"배달 요청 생성 완료: {len(self.delivery_requests)}개")
+            building_data_path = Path(__file__).parent.parent / "building_data.json"
+            if building_data_path.exists():
+                with open(building_data_path, 'r', encoding='utf-8') as f:
+                    self.buildings = json.load(f)
+                print(f"✅ 건물 데이터 로드 완료: {len(self.buildings)}개")
                 return True
             else:
-                print("배달 요청 생성에 실패했습니다.")
+                print("❌ building_data.json 파일을 찾을 수 없습니다.")
                 return False
-                
         except Exception as e:
-            print(f"배달 요청 생성 중 오류 발생: {e}")
+            print(f"❌ 데이터 로드 중 오류 발생: {e}")
             return False
-    
-    def create_drones(self, num_drones):
-        """
-        드론 생성
-        """
-        print("\n=== 5단계: 드론 생성 ===")
-        
+
+    def setup_depots_and_drones(self):
+        print("\n=== 2단계: Depot 및 드론 설정 ===")
         try:
+            # JSON에서 depot 데이터 로드
+            import json
+            from pathlib import Path
             
-            self.drones = []
+            depot_data_path = Path(__file__).parent.parent / "depot_data.json"
+            if depot_data_path.exists():
+                with open(depot_data_path, 'r', encoding='utf-8') as f:
+                    self.depots = json.load(f)
+            else:
+                # 기본 depot 설정 (fallback)
+                self.depots = [
+                    {'id': 'depot_1', 'longitude': 129.3250, 'latitude': 36.0145, 'height': 10.0},
+                    {'id': 'depot_2', 'longitude': 129.3270, 'latitude': 36.0130, 'height': 10.0}
+                ]
+                print("⚠️ depot_data.json을 찾을 수 없어 기본 depot 설정을 사용합니다.")
+
+            # JSON에서 드론 데이터 로드
+            drone_data_path = Path(__file__).parent.parent / "drone_data.json"
+            if drone_data_path.exists():
+                with open(drone_data_path, 'r', encoding='utf-8') as f:
+                    drone_data = json.load(f)
+                # JSON 데이터를 시스템 형식으로 변환
+                self.drones = []
+                for drone in drone_data:
+                    self.drones.append({
+                        'id': drone['id'],
+                        'depot_id': f"depot_{drone['id'].split('_')[2]}",  # drone_depot_1_1 -> depot_1
+                        'current_lon': drone['longitude'],
+                        'current_lat': drone['latitude'],
+                        'current_height': drone['height'],
+                        'battery': 100.0,
+                        'current_payload': 0.0
+                    })
+            else:
+                # 기본 드론 설정 (fallback)
+                self.drones = []
+                for depot in self.depots:
+                    for i in range(3):
+                        self.drones.append({
+                            'id': f"drone_{depot['id']}_{i+1}",
+                            'depot_id': depot['id'],
+                            'current_lon': depot['longitude'],
+                            'current_lat': depot['latitude'],
+                            'current_height': 50.0,
+                            'battery': 100.0,
+                            'current_payload': 0.0
+                        })
+                print("⚠️ drone_data.json을 찾을 수 없어 기본 드론 설정을 사용합니다.")
             
-            # 각 depot별로 드론 생성
-            for depot in self.depots:
-                depot_drones = max(1, num_drones // len(self.depots))
-                
-                for i in range(depot_drones):
-                    drone = {
-                        'id': f"drone_{depot['id']}_{i+1}",
-                        'depot_id': depot['id'],
-                        'current_lat': depot['latitude'],
-                        'current_lon': depot['longitude'],
-                        'status': 'idle',
-                        'battery': 100,
-                        'max_speed': DRONE_CONFIG['max_speed'],
-                        'max_payload': DRONE_CONFIG['max_payload'],
-                        'battery_capacity': DRONE_CONFIG['battery_capacity']
-                    }
-                    self.drones.append(drone)
-            
-            print(f"드론 생성 완료: {len(self.drones)}개")
+            print(f"✅ Depot {len(self.depots)}개, 드론 {len(self.drones)}개 설정 완료")
             return True
-            
         except Exception as e:
-            print(f"드론 생성 중 오류 발생: {e}")
+            print(f"❌ Depot 및 드론 설정 중 오류 발생: {e}")
             return False
-    
-    def optimize_routes(self):
+
+    def run_airsim_simulation(self, duration_hours=1):
         """
-        경로 최적화 (알고리즘 자동 선택)
+        AirSim 3D 시각화 시뮬레이션 실행
+        - 기존에 안정적으로 동작하는 핵심(드론별 전용 클라이언트/워커/큐, 이륙만 join, 이동 폴링)은 유지
+        - RealtimeRouteManager + CoordinateConverter + OrderGenerator 를 주입하여
+          임의 목적지 대신 '최적화된 경로'를 AirSim에서 실행
         """
-        print("\n=== 7단계: 경로 최적화 ===")
-        
+        print(f"\n=== 3단계: AirSim 3D 시각화 시뮬레이션 실행 ({duration_hours}시간) ===")
         try:
-            # 선택된 알고리즘에 따른 경로 최적화
-            if self.algorithm in ['genetic', 'ant_colony', 'particle_swarm', 'simulated_annealing']:
-                # Metaheuristic 알고리즘
-                if self.algorithm == 'genetic':
-                    from algorithm.routing.metaheuristic.genetic_algorithm import GeneticAlgorithm
-                    solver = GeneticAlgorithm(optimization_target=self.optimization_target)
-                    solver.delivery_requests = self.delivery_requests
-                    solver.depots = self.depots
-                    solver.drones = self.drones
-                elif self.algorithm == 'ant_colony':
-                    from algorithm.routing.metaheuristic.ant_colony import AntColonyOptimizer
-                    solver = AntColonyOptimizer(self.depots, self.delivery_requests, DRONE_CONFIG)
-                elif self.algorithm == 'particle_swarm':
-                    from algorithm.routing.metaheuristic.particle_swarm import ParticleSwarmOptimizer
-                    solver = ParticleSwarmOptimizer(self.depots, self.delivery_requests, DRONE_CONFIG)
-                elif self.algorithm == 'simulated_annealing':
-                    from algorithm.routing.metaheuristic.simulated_annealing import SimulatedAnnealingOptimizer
-                    solver = SimulatedAnnealingOptimizer(self.depots, self.delivery_requests, DRONE_CONFIG)
-                
-            elif self.algorithm in ['q_learning', 'dqn', 'actor_critic']:
-                # Reinforcement Learning 알고리즘
-                if self.algorithm == 'q_learning':
-                    from algorithm.routing.RL.q_learning import QLearningOptimizer
-                    solver = QLearningOptimizer(self.depots, self.delivery_requests, DRONE_CONFIG)
-                elif self.algorithm == 'dqn':
-                    from algorithm.routing.RL.deep_q_network import DQNOptimizer
-                    solver = DQNOptimizer(self.depots, self.delivery_requests, DRONE_CONFIG)
-                elif self.algorithm == 'actor_critic':
-                    from algorithm.routing.RL.actor_critic import ActorCriticOptimizer
-                    solver = ActorCriticOptimizer(self.depots, self.delivery_requests, DRONE_CONFIG)
-            
-            elif self.algorithm in ['clarke_wright', 'savings', 'sweep']:
-                # Matheuristic 알고리즘
-                if self.algorithm == 'clarke_wright':
-                    from algorithm.routing.matheuristic.clarke_wright import ClarkeWrightSolver
-                    solver = ClarkeWrightSolver(self.depots, self.delivery_requests, DRONE_CONFIG)
-                elif self.algorithm == 'savings':
-                    from algorithm.routing.matheuristic.savings_algorithm import SavingsAlgorithm
-                    solver = SavingsAlgorithm(self.depots, self.delivery_requests, DRONE_CONFIG)
-                elif self.algorithm == 'sweep':
-                    from algorithm.routing.matheuristic.sweep_algorithm import SweepAlgorithm
-                    solver = SweepAlgorithm(self.depots, self.delivery_requests, DRONE_CONFIG)
-            
+            self.airsim_visualizer = AirSimVisualizer(
+                depots=self.depots,
+                drones=self.drones,
+                building_data=self.buildings
+            )
+
+            if not self.airsim_visualizer.connect_to_airsim():
+                print("❌ AirSim 서버 연결 실패. 프로그램을 종료합니다.")
+                return
+
+            if not self.airsim_visualizer.setup_simulation_environment():
+                print("❌ AirSim 환경 설정 실패. 프로그램을 종료합니다.")
+                return
+
+            # 🔗 RouteManager 파이프라인 주입 (좌표 변환기 + 경로 관리자 + 주문 생성기)
+            #    - settings.json의 OriginGeopoint와 동일해야 함
+            converter = CoordinateConverter(base_lat=36.0139, base_lon=129.3261)
+
+            route_manager = RealtimeRouteManager(
+                depots=self.depots,
+                drones=self.drones,
+                optimization_target='cost',
+                speed_mps=15.0,
+                converter=converter
+            )
+
+            order_generator = OrderGenerator(
+                building_data=self.buildings,
+                prob_per_tick=0.25,     # tick당 주문 생성 확률 (필요시 조절)
+                rng_seed=42,
+                default_height_m=30.0
+            )
+
+            self.airsim_visualizer.attach_route_stack(
+                route_manager=route_manager,
+                converter=converter,
+                order_generator=order_generator
+            )
+            print("🔗 RouteManager/OrderGenerator/CoordinateConverter 연동 완료 (랜덤 이동 → 경로 최적화)")
+
+            # 시뮬레이션 시작
+            if self.airsim_visualizer.start_simulation(duration_hours):
+                print(f"🎬 AirSim 3D 시뮬레이션이 {duration_hours}시간 동안 자동으로 실행됩니다.")
+                print("💡 강제로 중지하려면 터미널에서 Ctrl+C 를 누르세요.")
+                try:
+                    simulation_seconds = int(duration_hours * 3600)
+                    time.sleep(simulation_seconds)
+                    print("\n✅ 예정된 시뮬레이션 시간이 종료되었습니다.")
+                except KeyboardInterrupt:
+                    print("\n⏹️ 사용자에 의해 시뮬레이션이 중단되었습니다.")
+                finally:
+                    self.airsim_visualizer.stop_simulation()
+
+                final_status = self.airsim_visualizer.get_simulation_status()
+                viz_status = self.airsim_visualizer.get_visualization_status()
+                print(f"\n🏁 최종 시뮬레이션 상태: {final_status}")
+                print(f"🎨 시각화 상태: {viz_status}")
+                return final_status
             else:
-                print(f"지원하지 않는 알고리즘: {self.algorithm}")
-                return False
-            
-            # 경로 최적화 실행
-            self.routes = solver.solve()
-            
-            if self.routes:
-                print(f"경로 최적화 완료: {len(self.routes)}개 경로")
-                return True
-            else:
-                print("경로 최적화에 실패했습니다.")
-                return False
-                
+                print("❌ AirSim 시뮬레이션 시작 실패. 프로그램을 종료합니다.")
+                return
+
         except Exception as e:
-            print(f"경로 최적화 중 오류 발생: {e}")
-            return False
-    
-    def run_simulation(self):
-        """
-        시뮬레이션 실행 (실시간 동적 요청 + 애니메이션)
-        """
-        print("\n=== 8단계: 실시간 동적 시뮬레이션 실행 ===")
-        
-        try:
-            # 실시간 시뮬레이터 사용
-            simulator = RealtimeDroneSimulator(
-                self.depots, 
-                self.routes, 
-                self.buildings, 
-                SIMULATION_CONFIG
-            )
-            
-            # 동적 요청 생성을 위한 설정
-            simulator.setup_dynamic_requests(
-                generation_rate=0.3,  # 분당 0.3개 요청 (18개/시간)
-                max_requests_per_batch=5,  # 한 번에 최대 5개 요청
-                time_window_minutes=60  # 1시간 윈도우
-            )
-            
-            # 시뮬레이션 실행 (60분, 실시간 속도)
-            simulation_results = simulator.run_simulation(
-                duration_minutes=60, 
-                realtime_factor=1.0,  # 실시간 속도
-                enable_animation=True  # 애니메이션 활성화
-            )
-            
-            if simulation_results:
-                print("실시간 동적 시뮬레이션 완료!")
-                print(f"총 생성된 요청: {simulation_results['total_requests']}개")
-                print(f"완료된 배달: {simulation_results['completed_deliveries']}개")
-                print(f"성공률: {simulation_results['success_rate']:.2%}")
-                print(f"평균 배달 시간: {simulation_results['avg_delivery_time']:.1f}초")
-                print(f"드론 활용률: {simulation_results['drone_utilization']:.2%}")
-                print(f"실시간 요청 처리율: {simulation_results['dynamic_request_rate']:.2%}")
-                
-                return simulation_results
-            else:
-                print("시뮬레이션 실행에 실패했습니다.")
-                return None
-                
-        except Exception as e:
-            print(f"시뮬레이션 실행 중 오류 발생: {e}")
+            print(f"❌ AirSim 시뮬레이션 실행 중 오류 발생: {e}")
             return None
-    
-    def analyze_results(self, simulation_results):
-        """
-        결과 분석
-        """
-        print("\n=== 9단계: 결과 분석 ===")
-        
+
+    def get_system_status(self):
+        return {
+            'buildings_loaded': self.buildings is not None,
+            'total_buildings': len(self.buildings) if self.buildings is not None else 0,
+            'total_depots': len(self.depots),
+            'total_drones': len(self.drones),
+            'simulation_mode': self.simulation_mode
+        }
+
+    def print_system_info(self):
+        print("\n📊 시스템 정보")
+        print("=" * 40)
+
+        st = self.get_system_status()
+        print(f"🏢 건물 데이터: {'✅ 로드됨' if st['buildings_loaded'] else '❌ 로드 안됨'}")
+        print(f"   총 건물 수: {st['total_buildings']}개")
+        print(f"🏭 Depot 수: {st['total_depots']}개")
+        print(f"🚁 드론 수: {st['total_drones']}개")
+        print(f"🎮 시뮬레이션 모드: {st['simulation_mode']}")
+
+        if self.depots:
+            print("\n🏢 Depot 정보:")
+            for depot in self.depots:
+                print(f"  {depot['id']}: ({depot['longitude']:.4f}, {depot['latitude']:.4f})")
+
+        if self.drones:
+            print("\n🚁 드론 정보:")
+            depot_drones = {}
+            for d in self.drones:
+                depot_drones[d['depot_id']] = depot_drones.get(d['depot_id'], 0) + 1
+            for depot, count in depot_drones.items():
+                print(f"  {depot}: {count}개 드론")
+
+    def cleanup(self):
         try:
-            # 성능 분석기 사용
-            from algorithm.simulation.performance_analyzer import PerformanceAnalyzer
-            
-            analyzer = PerformanceAnalyzer()
-            metrics = analyzer.analyze_performance(simulation_results)
-            
-            print("결과 분석 완료!")
-            print(f"총 비용: {metrics.get('total_cost', 0):.2f}원")
-            print(f"총 거리: {metrics.get('total_distance', 0):.2f}km")
-            print(f"평균 배달 시간: {metrics.get('avg_delivery_time', 0):.1f}분")
-            
-            return metrics
-            
+            if self.airsim_visualizer:
+                self.airsim_visualizer.cleanup()
+            print("🧹 리소스 정리 완료")
         except Exception as e:
-            print(f"결과 분석 중 오류 발생: {e}")
-            return {}
-    
-    def visualize_results(self, simulation_results=None):
-        """
-        결과 시각화
-        """
-        print("\n=== 10단계: 결과 시각화 ===")
-        
-        try:
-            # 시각화 도구 사용
-            if self.depots:
-                self.visualization_tool.plot_depots(self.depots)
-            
-            if self.routes:
-                self.visualization_tool.plot_drone_routes(self.routes, self.depots)
-            
-            if simulation_results:
-                self.visualization_tool.plot_simulation_results(simulation_results)
-            
-            print("결과 시각화 완료!")
-            
-        except Exception as e:
-            print(f"결과 시각화 중 오류 발생: {e}")
-    
-    def save_results(self, simulation_results=None):
-        """
-        결과 저장
-        """
-        print("\n=== 11단계: 결과 저장 ===")
-        
-        try:
-            # 결과를 CSV 파일로 저장
-            results_dir = Path("results")
-            results_dir.mkdir(exist_ok=True)
-            
-            # 경로 정보 저장
-            routes_data = []
-            for i, route in enumerate(self.routes):
-                routes_data.append({
-                    'route_id': i+1,
-                    'depot_id': route['depot_id'],
-                    'num_requests': len(route['requests']),
-                    'total_distance': route.get('total_distance', 0),
-                    'total_time': route.get('total_time', 0)
-                })
-            
-            routes_df = pd.DataFrame(routes_data)
-            routes_df.to_csv(results_dir / "routes.csv", index=False)
-            
-            # 시뮬레이션 결과 저장
-            if simulation_results:
-                sim_df = pd.DataFrame([simulation_results])
-                sim_df.to_csv(results_dir / "simulation_results.csv", index=False)
-            
-            print("결과 저장 완료!")
-            
-        except Exception as e:
-            print(f"결과 저장 중 오류 발생: {e}")
-    
-    def run(self):
-        """
-        전체 시스템 실행
-        """
-        print("=" * 50)
-        print("드론 음식 배달 시스템 시작")
-        print("=" * 50)
-        
-        # 1. 데이터 로드
-        if not self.load_data():
-            return False
-        
-        # 2. 지도 분석 및 알고리즘 선택
-        if not self.analyze_map_and_select_algorithm():
-            return False
-        
-        # 3. Depot 최적화
-        if not self.optimize_depots():
-            return False
-        
-        # 4. 최적 드론 수 계산
-        optimal_drone_count = self.calculate_optimal_drone_count()
-        if optimal_drone_count is None:
-            return False
-        
-        # 5. 드론 생성
-        if not self.create_drones(optimal_drone_count):
-            return False
-        
-        # 6. 배달 요청 생성
-        if not self.generate_delivery_requests():
-            return False
-        
-        # 7. 경로 최적화
-        if not self.optimize_routes():
-            return False
-        
-        # 8. 시뮬레이션 실행
-        simulation_results = self.run_simulation()
-        if simulation_results is None:
-            return False
-        
-        # 9. 결과 분석
-        metrics = self.analyze_results(simulation_results)
-        
-        # 10. 시각화
-        self.visualize_results(simulation_results)
-        
-        # 11. 결과 저장
-        self.save_results(simulation_results)
-        
-        print("\n" + "=" * 50)
-        print("드론 음식 배달 시스템 완료!")
-        print("=" * 50)
-        
-        return True
+            print(f"⚠️ 정리 중 오류: {e}")
+
+    def __del__(self):
+        self.cleanup()
+
 
 def main():
-    """
-    메인 함수
-    """
-    print("드론 음식 배달 시스템")
-    print("-" * 30)
-    
-    # 최적화 목표 선택
-    print("최적화 목표를 선택하세요:")
-    print("1. 비용 최적화 (cost)")
-    print("2. 시간 최적화 (time)")
-    
-    while True:
-        target_choice = input("선택 (1 또는 2): ").strip()
-        if target_choice == '1':
-            optimization_target = 'cost'
-            break
-        elif target_choice == '2':
-            optimization_target = 'time'
-            break
-        else:
-            print("잘못된 선택입니다. 1 또는 2를 입력하세요.")
-    
-    # 자동 모드로 시스템 실행 (알고리즘은 자동 선택)
-    system = DroneDeliverySystem(optimization_target=optimization_target)
-    
-    # 시스템 실행
-    success = system.run()
-    
-    if success:
-        print("\n시스템이 성공적으로 완료되었습니다!")
-    else:
-        print("\n시스템 실행 중 오류가 발생했습니다.")
+    print("🚀 AirSim 3D 드론 배달 시스템 시작")
+    print("=" * 60)
+
+    system = DroneDeliverySystem(simulation_mode='realtime')
+
+    if not system.load_data():
+        print("❌ 데이터 로드 실패로 시스템을 종료합니다.")
+        return
+
+    if not system.setup_depots_and_drones():
+        print("❌ Depot 및 드론 설정 실패로 시스템을 종료합니다.")
+        return
+
+    system.print_system_info()
+
+    print("\n🎬 AirSim 3D 시각화 시뮬레이션을 선택하세요:")
+    print("1. AirSim 3D 시각화 시뮬레이션 (1시간)")
+    print("2. AirSim 3D 시각화 시뮬레이션 (2시간)")
+    print("3. 종료")
+
+    try:
+        while True:
+            choice = input("\n선택 (1-3): ").strip()
+            if choice == '1':
+                print("\n" + "=" * 60)
+                system.run_airsim_simulation(duration_hours=1)
+                print("\n🎉 AirSim 3D 시각화 시뮬레이션 완료!")
+                break
+            elif choice == '2':
+                print("\n" + "=" * 60)
+                system.run_airsim_simulation(duration_hours=2)
+                print("\n🎉 AirSim 3D 시각화 시뮬레이션 완료!")
+                break
+            elif choice == '3':
+                print("👋 프로그램을 종료합니다.")
+                break
+            else:
+                print("❌ 잘못된 선택입니다. 1-3 중에서 선택해주세요.")
+    except KeyboardInterrupt:
+        print("\n\n⏹️ 사용자에 의해 프로그램이 중단되었습니다.")
+    finally:
+        system.cleanup()
+
 
 if __name__ == "__main__":
-    main() 
+    main()

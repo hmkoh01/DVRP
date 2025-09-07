@@ -1,0 +1,44 @@
+[
+  {
+    "id": "drone_depot_1_1",
+    "longitude": 230000.0,
+    "latitude": 380000.0,
+    "height": 122.0,
+    "status": "idle"
+  },
+  {
+    "id": "drone_depot_1_2",
+    "longitude": 230000.0,
+    "latitude": 380000.0,
+    "height": 122.0,
+    "status": "idle"
+  },
+  {
+    "id": "drone_depot_1_3",
+    "longitude": 230000.0,
+    "latitude": 380000.0,
+    "height": 122.0,
+    "status": "idle"
+  },
+  {
+    "id": "drone_depot_2_1",
+    "longitude": 230500.0,
+    "latitude": 380500.0,
+    "height": 122.0,
+    "status": "idle"
+  },
+  {
+    "id": "drone_depot_2_2",
+    "longitude": 230500.0,
+    "latitude": 380500.0,
+    "height": 122.0,
+    "status": "idle"
+  },
+  {
+    "id": "drone_depot_2_3",
+    "longitude": 230500.0,
+    "latitude": 380500.0,
+    "height": 122.0,
+    "status": "idle"
+  }
+]

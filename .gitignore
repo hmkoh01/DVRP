@@ -48,7 +48,6 @@ results/
 # Large data files (if any)
 *.csv
 *.geojson
-*.json
 
 # Keep only essential map files
 !map/postech_map/merged_maps/postech_buildings_real_height.csv

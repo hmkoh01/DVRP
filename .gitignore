@@ -73,7 +73,6 @@ map/postech_map/*.xlsx
 map/postech_map/*.xls
 map/postech_map/*.csv
 map/postech_map/*.geojson
-map/postech_map/*.json
 
 # Keep map code files
 !map/*.py
